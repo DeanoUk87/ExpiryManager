@@ -70,16 +70,10 @@ export default function ProductsManager() {
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/products");
-      const data: Product[] = await res.json();
-      const withExpiries = await Promise.all(
-        data.map(async (p) => {
-          const eRes = await fetch(`/api/products/${p.id}/expiry`);
-          const expiries: ProductExpiry[] = await eRes.json();
-          return { ...p, expiries };
-        })
-      );
-      setProducts(withExpiries);
+      // Single request returns all products + expiries joined — no N+1
+      const res = await fetch("/api/products/with-expiry");
+      const data: ProductWithExpiries[] = await res.json();
+      setProducts(Array.isArray(data) ? data : []);
     } catch {
       // ignore
     } finally {
@@ -228,11 +222,13 @@ export default function ProductsManager() {
       }
       setEditingExpiry(null);
       setExpiryForm({ expiryDate: "", quantity: "", notes: "" });
+      // Refresh just this product's expiries
       const eRes = await fetch(`/api/products/${expiryModalProduct.id}/expiry`);
       const expiries: ProductExpiry[] = await eRes.json();
-      setExpiryModalProduct({ ...expiryModalProduct, expiries });
+      const updated = { ...expiryModalProduct, expiries };
+      setExpiryModalProduct(updated);
       setProducts((prev) =>
-        prev.map((p) => (p.id === expiryModalProduct.id ? { ...p, expiries } : p))
+        prev.map((p) => (p.id === expiryModalProduct.id ? updated : p))
       );
     } finally {
       setSavingExpiry(false);
@@ -246,9 +242,10 @@ export default function ProductsManager() {
       await fetch(`/api/expiry/${expiryId}`, { method: "DELETE" });
       const eRes = await fetch(`/api/products/${expiryModalProduct.id}/expiry`);
       const expiries: ProductExpiry[] = await eRes.json();
-      setExpiryModalProduct({ ...expiryModalProduct, expiries });
+      const updated = { ...expiryModalProduct, expiries };
+      setExpiryModalProduct(updated);
       setProducts((prev) =>
-        prev.map((p) => (p.id === expiryModalProduct.id ? { ...p, expiries } : p))
+        prev.map((p) => (p.id === expiryModalProduct.id ? updated : p))
       );
     } finally {
       setDeletingExpiryId(null);

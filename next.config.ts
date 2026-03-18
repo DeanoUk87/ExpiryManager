@@ -9,8 +9,6 @@ const nextConfig: NextConfig = {
     SHOPIFY_STORE_DOMAIN: "neonailuk.myshopify.com",
     NEXTAUTH_SECRET: "axBctaj5qb3dMG+5ysgXROuwwXsISolm",
   },
-  // Allow the app to be served behind the Kilo proxy which terminates TLS
-  // The proxy is already secure; internal connections use HTTP
   async headers() {
     return [
       {
