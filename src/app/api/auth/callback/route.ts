@@ -4,7 +4,6 @@ import crypto from "crypto";
 import { db } from "@/db";
 import { shopifySessions } from "@/db/schema";
 
-const APP_URL = process.env.SHOPIFY_APP_URL!;
 const API_KEY = process.env.SHOPIFY_API_KEY!;
 const API_SECRET = process.env.SHOPIFY_API_SECRET!;
 
@@ -38,22 +37,24 @@ export async function GET(request: NextRequest) {
   const state = searchParams.get("state");
   const hmac = searchParams.get("hmac");
 
-  const redirectBase = APP_URL ?? request.nextUrl.origin;
+  // Use request.nextUrl.origin for all internal redirects so the proxy
+  // doesn't reject them (it strips https -> http internally)
+  const origin = request.nextUrl.origin;
 
   if (!shop || !code || !state || !hmac) {
-    return NextResponse.redirect(`${redirectBase}/connect?error=${encodeURIComponent("Missing required OAuth parameters.")}`);
+    return NextResponse.redirect(`${origin}/connect?error=${encodeURIComponent("Missing required OAuth parameters.")}`);
   }
 
   // Verify HMAC signature from Shopify
   if (!verifyHmac(searchParams)) {
-    return NextResponse.redirect(`${redirectBase}/connect?error=${encodeURIComponent("HMAC verification failed.")}`);
+    return NextResponse.redirect(`${origin}/connect?error=${encodeURIComponent("HMAC verification failed.")}`);
   }
 
   // Verify state matches what we stored in the cookie (CSRF protection)
   const cookieStore = await cookies();
   const storedState = cookieStore.get("shopify_oauth_state")?.value;
   if (!storedState || storedState !== state) {
-    return NextResponse.redirect(`${redirectBase}/connect?error=${encodeURIComponent("State mismatch. Please try again.")}`);
+    return NextResponse.redirect(`${origin}/connect?error=${encodeURIComponent("State mismatch. Please try again.")}`);
   }
   cookieStore.delete("shopify_oauth_state");
 
@@ -68,7 +69,7 @@ export async function GET(request: NextRequest) {
     if (!tokenRes.ok) {
       const err = await tokenRes.text();
       console.error("Token exchange failed:", err);
-      return NextResponse.redirect(`${redirectBase}/connect?error=${encodeURIComponent("Token exchange failed.")}`);
+      return NextResponse.redirect(`${origin}/connect?error=${encodeURIComponent("Token exchange failed.")}`);
     }
 
     const { access_token, scope } = await tokenRes.json() as { access_token: string; scope: string };
@@ -84,9 +85,9 @@ export async function GET(request: NextRequest) {
       });
 
     console.log(`✅ OAuth complete for shop: ${shop}`);
-    return NextResponse.redirect(`${redirectBase}/`);
+    return NextResponse.redirect(`${origin}/`);
   } catch (error) {
     console.error("OAuth callback error:", error);
-    return NextResponse.redirect(`${redirectBase}/connect?error=${encodeURIComponent("Authentication failed. Please try again.")}`);
+    return NextResponse.redirect(`${origin}/connect?error=${encodeURIComponent("Authentication failed. Please try again.")}`);
   }
 }
