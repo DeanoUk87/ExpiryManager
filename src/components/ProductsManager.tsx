@@ -34,6 +34,18 @@ export default function ProductsManager() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
+  // Shopify sync
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [shopifyConnected, setShopifyConnected] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch("/api/shopify/status")
+      .then((r) => r.json())
+      .then((d) => setShopifyConnected(d.connected))
+      .catch(() => setShopifyConnected(false));
+  }, []);
+
   // Product form
   const [showProductForm, setShowProductForm] = useState(false);
   const [productForm, setProductForm] = useState({ sku: "", name: "", shopifyProductId: "", shopifyVariantId: "" });
@@ -186,6 +198,25 @@ export default function ProductsManager() {
     }
   };
 
+  const handleShopifySync = async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch("/api/shopify/sync", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setSyncResult({ success: false, message: data.error ?? "Sync failed." });
+      } else {
+        setSyncResult({ success: true, message: data.message });
+        await fetchProducts();
+      }
+    } catch {
+      setSyncResult({ success: false, message: "Sync failed. Check your connection." });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const filtered = products.filter(
     (p) =>
       p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -199,13 +230,43 @@ export default function ProductsManager() {
           <h1 className="text-2xl font-bold text-white">Products</h1>
           <p className="text-gray-400 mt-1">Manage product expiry dates and quantities</p>
         </div>
-        <button
-          onClick={() => { setShowProductForm(true); setProductFormError(""); }}
-          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors"
-        >
-          + Add Product
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {shopifyConnected === true && (
+            <button
+              onClick={handleShopifySync}
+              disabled={syncing}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 text-sm font-medium rounded-lg border border-gray-700 transition-colors"
+            >
+              <svg className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {syncing ? "Syncing..." : "Sync from Shopify"}
+            </button>
+          )}
+          {shopifyConnected === false && (
+            <a
+              href="/connect"
+              className="px-4 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-sm font-medium rounded-lg border border-amber-500/30 transition-colors"
+            >
+              Connect Shopify to sync
+            </a>
+          )}
+          <button
+            onClick={() => { setShowProductForm(true); setProductFormError(""); }}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors"
+          >
+            + Add Product
+          </button>
+        </div>
       </div>
+
+      {/* Sync result banner */}
+      {syncResult && (
+        <div className={`rounded-xl px-4 py-3 text-sm flex items-center justify-between gap-3 ${syncResult.success ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400" : "bg-red-500/10 border border-red-500/30 text-red-400"}`}>
+          <span>{syncResult.message}</span>
+          <button onClick={() => setSyncResult(null)} className="opacity-60 hover:opacity-100 text-lg leading-none">×</button>
+        </div>
+      )}
 
       {/* Search */}
       <input

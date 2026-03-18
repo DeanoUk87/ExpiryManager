@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 const navItems = [
   { href: "/", label: "Dashboard" },
@@ -11,6 +12,14 @@ const navItems = [
 
 export default function Nav() {
   const pathname = usePathname();
+  const [connected, setConnected] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch("/api/shopify/status")
+      .then((r) => r.json())
+      .then((d) => setConnected(d.connected))
+      .catch(() => setConnected(false));
+  }, []);
 
   return (
     <header className="border-b border-gray-800 bg-gray-900/80 backdrop-blur sticky top-0 z-50">
@@ -34,24 +43,40 @@ export default function Nav() {
             </div>
             <span className="font-semibold text-white text-lg">Expiry Manager</span>
           </div>
-          <nav className="flex items-center gap-1">
-            {navItems.map((item) => {
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    isActive
-                      ? "bg-gray-800 text-white"
-                      : "text-gray-400 hover:text-white hover:bg-gray-800/60"
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
+          <div className="flex items-center gap-3">
+            <nav className="flex items-center gap-1">
+              {navItems.map((item) => {
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      isActive
+                        ? "bg-gray-800 text-white"
+                        : "text-gray-400 hover:text-white hover:bg-gray-800/60"
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+            {/* Shopify connection status */}
+            {connected !== null && (
+              <Link
+                href="/connect"
+                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                  connected
+                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                    : "border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${connected ? "bg-emerald-400" : "bg-red-400"}`} />
+                {connected ? "Shopify Connected" : "Connect Shopify"}
+              </Link>
+            )}
+          </div>
         </div>
       </div>
     </header>

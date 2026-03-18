@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 
 // Products table - stores Shopify product info synced or manually entered
 export const products = sqliteTable("products", {
@@ -33,6 +33,25 @@ export const reminderRules = sqliteTable("reminder_rules", {
   emailEnabled: integer("email_enabled", { mode: "boolean" }).notNull().default(false),
   emailAddress: text("email_address"),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
+});
+
+// Shopify OAuth sessions - stores access tokens per shop
+export const shopifySessions = sqliteTable("shopify_sessions", {
+  id: text("id").primaryKey(), // Shopify session ID
+  shop: text("shop").notNull(),
+  state: text("state").notNull(),
+  isOnline: integer("is_online", { mode: "boolean" }).notNull().default(false),
+  scope: text("scope"),
+  expires: integer("expires", { mode: "timestamp" }),
+  accessToken: text("access_token"),
+  userId: integer("user_id"),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  email: text("email"),
+  accountOwner: integer("account_owner", { mode: "boolean" }).notNull().default(false),
+  locale: text("locale"),
+  collaborator: integer("collaborator", { mode: "boolean" }).default(false),
+  emailVerified: integer("email_verified", { mode: "boolean" }).default(false),
 });
 
 // Dashboard alerts log - tracks which rules have been "acknowledged"

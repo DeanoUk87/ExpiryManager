@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { productExpiry, products } from "@/db/schema";
+import { productExpiry } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { writeExpiryMetafieldsToShopify } from "@/lib/shopifyWriteback";
 
 export async function GET(
   _request: Request,
@@ -51,6 +52,9 @@ export async function POST(
         notes: notes || null,
       })
       .returning();
+
+    // Write-back to Shopify metafields (best-effort, non-blocking)
+    writeExpiryMetafieldsToShopify(productId).catch(console.error);
 
     return NextResponse.json(newExpiry, { status: 201 });
   } catch (error) {

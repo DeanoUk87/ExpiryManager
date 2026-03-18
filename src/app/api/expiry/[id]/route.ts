@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { productExpiry } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { writeExpiryMetafieldsToShopify } from "@/lib/shopifyWriteback";
 
 export async function PUT(
   request: Request,
@@ -27,6 +28,9 @@ export async function PUT(
       return NextResponse.json({ error: "Expiry record not found" }, { status: 404 });
     }
 
+    // Write-back to Shopify metafields (best-effort)
+    writeExpiryMetafieldsToShopify(updated.productId).catch(console.error);
+
     return NextResponse.json(updated);
   } catch (error) {
     console.error("Failed to update expiry record:", error);
@@ -42,7 +46,19 @@ export async function DELETE(
     const { id } = await params;
     const expiryId = parseInt(id);
 
+    // Get product ID before deleting so we can write-back
+    const [existing] = await db
+      .select()
+      .from(productExpiry)
+      .where(eq(productExpiry.id, expiryId));
+
     await db.delete(productExpiry).where(eq(productExpiry.id, expiryId));
+
+    // Write-back to Shopify metafields (best-effort)
+    if (existing) {
+      writeExpiryMetafieldsToShopify(existing.productId).catch(console.error);
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Failed to delete expiry record:", error);
