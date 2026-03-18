@@ -3,7 +3,6 @@ import {
   shopifyApi,
   ApiVersion,
   Session,
-  DeliveryMethod,
 } from "@shopify/shopify-api";
 import { db } from "@/db";
 import { shopifySessions } from "@/db/schema";
