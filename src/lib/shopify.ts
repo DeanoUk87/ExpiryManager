@@ -124,8 +124,14 @@ export const shopify = shopifyApi({
 
 // ---------------------------------------------------------------------------
 // Helper: get the stored offline session for a shop
+// Session ID format matches what the callback stores: offline_{shop}
 // ---------------------------------------------------------------------------
 export async function getOfflineSession(shop: string): Promise<Session | undefined> {
+  // Try our manual format first (offline_{shop})
+  const manualId = `offline_${shop}`;
+  const manual = await dbSessionStorage.loadSession(manualId);
+  if (manual) return manual;
+  // Fallback: try the shopify-api library format
   const sessionId = shopify.session.getOfflineId(shop);
   return dbSessionStorage.loadSession(sessionId);
 }
