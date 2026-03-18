@@ -148,7 +148,8 @@ export async function POST() {
       message: `Synced ${synced} products (${withMetafields} had existing expiry metafields imported).`,
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error("Shopify sync error:", error);
-    return NextResponse.json({ error: "Sync failed. Check server logs." }, { status: 500 });
+    return NextResponse.json({ error: "Sync failed.", detail: message }, { status: 500 });
   }
 }
