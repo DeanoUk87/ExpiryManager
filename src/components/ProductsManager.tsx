@@ -399,9 +399,10 @@ export default function ProductsManager() {
                   <button
                     onClick={() => handleDeleteProduct(product.id)}
                     disabled={deletingProductId === product.id}
+                    title="Remove from this app only — does not affect your Shopify store"
                     className="px-3 py-1.5 bg-red-900/30 hover:bg-red-900/50 text-red-400 text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
                   >
-                    {deletingProductId === product.id ? "..." : "Delete"}
+                    {deletingProductId === product.id ? "..." : "Remove from app"}
                   </button>
                 </div>
               </div>
