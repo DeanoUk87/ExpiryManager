@@ -1,38 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import crypto from "crypto";
 import { db } from "@/db";
 import { shopifySessions } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 const APP_URL = process.env.SHOPIFY_APP_URL!;
 const API_KEY = process.env.SHOPIFY_API_KEY!;
 const API_SECRET = process.env.SHOPIFY_API_SECRET!;
 
-function redirect(path: string) {
-  // Always redirect to the public HTTPS URL so the browser lands correctly
-  return new NextResponse(null, {
-    status: 302,
-    headers: { Location: `${APP_URL}${path}` },
-  });
-}
-
 function verifyHmac(query: URLSearchParams): boolean {
   const hmac = query.get("hmac");
   if (!hmac) return false;
-
   const params: string[] = [];
   query.forEach((value, key) => {
     if (key !== "hmac") params.push(`${key}=${value}`);
   });
   params.sort();
   const message = params.join("&");
-
-  const digest = crypto
-    .createHmac("sha256", API_SECRET)
-    .update(message)
-    .digest("hex");
-
+  const digest = crypto.createHmac("sha256", API_SECRET).update(message).digest("hex");
   return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(hmac));
+}
+
+// Use a JS-based redirect so the browser navigates client-side.
+// Server-side 302 Location headers get intercepted by the Kilo proxy.
+function jsRedirect(url: string) {
+  return new NextResponse(
+    `<!DOCTYPE html><html><head><meta charset="utf-8">
+    <script>window.location.replace(${JSON.stringify(url)});</script>
+    </head><body>Redirecting...</body></html>`,
+    { status: 200, headers: { "Content-Type": "text/html" } }
+  );
 }
 
 export async function GET(request: NextRequest) {
@@ -43,19 +40,25 @@ export async function GET(request: NextRequest) {
   const hmac = searchParams.get("hmac");
 
   if (!shop || !code || !state || !hmac) {
-    return redirect(`/connect?error=${encodeURIComponent("Missing required OAuth parameters.")}`);
+    return jsRedirect(`${APP_URL}/connect?error=${encodeURIComponent("Missing required OAuth parameters.")}`);
   }
 
   if (!verifyHmac(searchParams)) {
-    return redirect(`/connect?error=${encodeURIComponent("HMAC verification failed.")}`);
+    return jsRedirect(`${APP_URL}/connect?error=${encodeURIComponent("HMAC verification failed.")}`);
   }
 
-  const cookieStore = await cookies();
-  const storedState = cookieStore.get("shopify_oauth_state")?.value;
-  if (!storedState || storedState !== state) {
-    return redirect(`/connect?error=${encodeURIComponent("State mismatch. Please try again.")}`);
+  // Verify state from DB (stored as state_{state} when generating the auth URL)
+  const stateRows = await db
+    .select()
+    .from(shopifySessions)
+    .where(eq(shopifySessions.id, `state_${state}`));
+
+  if (!stateRows.length) {
+    return jsRedirect(`${APP_URL}/connect?error=${encodeURIComponent("State not found. Please try again.")}`);
   }
-  cookieStore.delete("shopify_oauth_state");
+
+  // Clean up the temporary state record
+  await db.delete(shopifySessions).where(eq(shopifySessions.id, `state_${state}`));
 
   try {
     const tokenRes = await fetch(`https://${shop}/admin/oauth/access_token`, {
@@ -67,7 +70,7 @@ export async function GET(request: NextRequest) {
     if (!tokenRes.ok) {
       const err = await tokenRes.text();
       console.error("Token exchange failed:", err);
-      return redirect(`/connect?error=${encodeURIComponent("Token exchange failed.")}`);
+      return jsRedirect(`${APP_URL}/connect?error=${encodeURIComponent("Token exchange failed.")}`);
     }
 
     const { access_token, scope } = await tokenRes.json() as { access_token: string; scope: string };
@@ -82,9 +85,9 @@ export async function GET(request: NextRequest) {
       });
 
     console.log(`✅ OAuth complete for shop: ${shop}`);
-    return redirect("/");
+    return jsRedirect(`${APP_URL}/`);
   } catch (error) {
     console.error("OAuth callback error:", error);
-    return redirect(`/connect?error=${encodeURIComponent("Authentication failed. Please try again.")}`);
+    return jsRedirect(`${APP_URL}/connect?error=${encodeURIComponent("Authentication failed. Please try again.")}`);
   }
 }
