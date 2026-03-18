@@ -3,8 +3,6 @@ import { getOfflineSession, getAdminClient } from "@/lib/shopify";
 
 const SHOP = process.env.SHOPIFY_STORE_DOMAIN ?? "neonailuk.myshopify.com";
 
-// GET /api/shopify/debug
-// Shows the stored session details and tests a simple GraphQL call
 export async function GET() {
   try {
     const session = await getOfflineSession(SHOP);
@@ -21,19 +19,17 @@ export async function GET() {
       scope: session.scope,
     };
 
-    // Try a minimal GraphQL query
     const client = await getAdminClient(SHOP);
     if (!client) {
       return NextResponse.json({ session: sessionInfo, error: "Could not create GraphQL client" });
     }
 
-    const result = await client.query({
-      data: { query: `{ shop { name myshopifyDomain } }` },
-    });
+    // v13 uses client.request(query, options) not client.query()
+    const result = await client.request(`{ shop { name myshopifyDomain } }`);
 
     return NextResponse.json({
       session: sessionInfo,
-      shopifyResponse: result.body,
+      shopifyResponse: result.data,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

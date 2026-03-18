@@ -6,8 +6,6 @@ import { eq } from "drizzle-orm";
 
 const SHOP = process.env.SHOPIFY_STORE_DOMAIN ?? "neonailuk.myshopify.com";
 
-// GraphQL query - fetches products with their SKU (from first variant)
-// and the two custom metafields: custom.expiry_date and custom.qty
 const PRODUCTS_QUERY = `
   query GetProducts($cursor: String) {
     products(first: 50, after: $cursor) {
@@ -59,7 +57,7 @@ export async function POST() {
     const client = await getAdminClient(SHOP);
     if (!client) {
       return NextResponse.json(
-        { error: "Not connected to Shopify. Please install the app first.", installUrl: `/api/auth?shop=${SHOP}` },
+        { error: "Not connected to Shopify. Please connect first.", installUrl: `/connect` },
         { status: 401 }
       );
     }
@@ -70,18 +68,18 @@ export async function POST() {
     let withMetafields = 0;
 
     while (hasNextPage) {
-      const rawResponse = await client.query({
-        data: { query: PRODUCTS_QUERY, variables: { cursor } },
+      // v13 API: client.request(query, { variables })
+      const result = await client.request<ProductsQueryResponse>(PRODUCTS_QUERY, {
+        variables: { cursor },
       });
 
-      interface GqlBody { data: ProductsQueryResponse }
-      const body = rawResponse.body as unknown as GqlBody;
-      const { edges, pageInfo }: ProductsQueryResponse["products"] = body.data.products;
+      const gqlData = result.data as ProductsQueryResponse;
+      const { edges, pageInfo }: ProductsQueryResponse["products"] = gqlData.products;
       hasNextPage = pageInfo.hasNextPage;
       cursor = pageInfo.endCursor;
 
       for (const { node } of edges) {
-        const shopifyProductId = node.id; // gid://shopify/Product/123456
+        const shopifyProductId = node.id;
         const shopifyVariantId = node.variants.edges[0]?.node.id ?? null;
         const sku = node.variants.edges[0]?.node.sku ?? "";
         const name = node.title;
@@ -95,7 +93,6 @@ export async function POST() {
         let productId: number;
 
         if (existing.length > 0) {
-          // Update name/sku/variant if changed
           await db
             .update(products)
             .set({ name, sku, shopifyVariantId, updatedAt: new Date() })
@@ -109,23 +106,18 @@ export async function POST() {
           productId = inserted.id;
         }
 
-        // If Shopify metafields have data, import them as an expiry batch
-        // Only import if there's no existing expiry batch from Shopify already
-        // (to avoid duplicating on subsequent syncs)
+        // Import existing Shopify metafield values as an expiry batch (once only)
         const expiryDateVal = node.expiryDate?.value ?? null;
         const expiryQtyVal = node.expiryQty?.value ? parseInt(node.expiryQty.value) : null;
 
         if (expiryDateVal && expiryQtyVal !== null && !isNaN(expiryQtyVal)) {
           withMetafields++;
-          // Check if an expiry batch with this exact date already exists for this product
           const existingExpiry = await db
             .select()
             .from(productExpiry)
             .where(eq(productExpiry.productId, productId));
 
-          const alreadyHasThisDate = existingExpiry.some(
-            (e) => e.expiryDate === expiryDateVal
-          );
+          const alreadyHasThisDate = existingExpiry.some((e) => e.expiryDate === expiryDateVal);
 
           if (!alreadyHasThisDate) {
             await db.insert(productExpiry).values({
@@ -149,7 +141,7 @@ export async function POST() {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("Shopify sync error:", error);
+    console.error("Shopify sync error:", message);
     return NextResponse.json({ error: "Sync failed.", detail: message }, { status: 500 });
   }
 }

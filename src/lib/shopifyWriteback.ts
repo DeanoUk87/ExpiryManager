@@ -56,27 +56,25 @@ export async function writeExpiryMetafieldsToShopify(productId: number): Promise
     const client = await getAdminClient(SHOP);
     if (!client) return; // Not connected - skip write-back silently
 
-    await client.query({
-      data: {
-        query: SET_METAFIELDS_MUTATION,
-        variables: {
-          metafields: [
-            {
-              ownerId: shopifyProductId,
-              namespace: "custom",
-              key: "expiry_date",
-              value: earliestDate,
-              type: "date",
-            },
-            {
-              ownerId: shopifyProductId,
-              namespace: "custom",
-              key: "qty",
-              value: String(totalQty),
-              type: "number_integer",
-            },
-          ],
-        },
+    // v13 API: client.request(query, { variables })
+    await client.request(SET_METAFIELDS_MUTATION, {
+      variables: {
+        metafields: [
+          {
+            ownerId: shopifyProductId,
+            namespace: "custom",
+            key: "expiry_date",
+            value: earliestDate,
+            type: "date",
+          },
+          {
+            ownerId: shopifyProductId,
+            namespace: "custom",
+            key: "qty",
+            value: String(totalQty),
+            type: "number_integer",
+          },
+        ],
       },
     });
 
