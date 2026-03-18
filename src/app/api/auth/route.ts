@@ -6,10 +6,13 @@ const APP_URL = process.env.SHOPIFY_APP_URL!;
 const API_KEY = process.env.SHOPIFY_API_KEY!;
 const SCOPES = process.env.SHOPIFY_SCOPES ?? "read_products,write_products";
 
-// GET /api/auth?shop=neonailuk.myshopify.com
-// Builds the Shopify OAuth URL manually and redirects the merchant to it.
-// We do this manually rather than using shopify.auth.begin because that method
-// expects a Node.js IncomingMessage, not a Next.js App Router Request.
+function redirect(url: string) {
+  return new NextResponse(null, {
+    status: 302,
+    headers: { Location: url },
+  });
+}
+
 export async function GET(request: NextRequest) {
   const shop = request.nextUrl.searchParams.get("shop");
 
@@ -17,21 +20,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Missing shop parameter" }, { status: 400 });
   }
 
-  // Validate shop domain format
   if (!/^[a-zA-Z0-9][a-zA-Z0-9\-]*\.myshopify\.com$/.test(shop)) {
     return NextResponse.json({ error: "Invalid shop domain" }, { status: 400 });
   }
 
-  // Generate a random nonce to protect against CSRF
   const state = crypto.randomBytes(16).toString("hex");
 
-  // Store state in a cookie so we can verify it on callback
   const cookieStore = await cookies();
   cookieStore.set("shopify_oauth_state", state, {
     httpOnly: true,
-    secure: true,
+    secure: false, // container is HTTP internally
     sameSite: "lax",
-    maxAge: 600, // 10 minutes
+    maxAge: 600,
     path: "/",
   });
 
@@ -45,5 +45,5 @@ export async function GET(request: NextRequest) {
     `&state=${state}` +
     `&grant_options[]=`;
 
-  return NextResponse.redirect(authUrl);
+  return redirect(authUrl);
 }

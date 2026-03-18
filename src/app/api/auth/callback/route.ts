@@ -4,10 +4,18 @@ import crypto from "crypto";
 import { db } from "@/db";
 import { shopifySessions } from "@/db/schema";
 
+const APP_URL = process.env.SHOPIFY_APP_URL!;
 const API_KEY = process.env.SHOPIFY_API_KEY!;
 const API_SECRET = process.env.SHOPIFY_API_SECRET!;
 
-// Verify the HMAC signature Shopify sends with the callback
+function redirect(path: string) {
+  // Always redirect to the public HTTPS URL so the browser lands correctly
+  return new NextResponse(null, {
+    status: 302,
+    headers: { Location: `${APP_URL}${path}` },
+  });
+}
+
 function verifyHmac(query: URLSearchParams): boolean {
   const hmac = query.get("hmac");
   if (!hmac) return false;
@@ -27,9 +35,6 @@ function verifyHmac(query: URLSearchParams): boolean {
   return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(hmac));
 }
 
-// GET /api/auth/callback
-// Shopify redirects here after the merchant approves the app.
-// We exchange the code for a permanent access token and store it.
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const shop = searchParams.get("shop");
@@ -37,29 +42,22 @@ export async function GET(request: NextRequest) {
   const state = searchParams.get("state");
   const hmac = searchParams.get("hmac");
 
-  // Use request.nextUrl.origin for all internal redirects so the proxy
-  // doesn't reject them (it strips https -> http internally)
-  const origin = request.nextUrl.origin;
-
   if (!shop || !code || !state || !hmac) {
-    return NextResponse.redirect(`${origin}/connect?error=${encodeURIComponent("Missing required OAuth parameters.")}`);
+    return redirect(`/connect?error=${encodeURIComponent("Missing required OAuth parameters.")}`);
   }
 
-  // Verify HMAC signature from Shopify
   if (!verifyHmac(searchParams)) {
-    return NextResponse.redirect(`${origin}/connect?error=${encodeURIComponent("HMAC verification failed.")}`);
+    return redirect(`/connect?error=${encodeURIComponent("HMAC verification failed.")}`);
   }
 
-  // Verify state matches what we stored in the cookie (CSRF protection)
   const cookieStore = await cookies();
   const storedState = cookieStore.get("shopify_oauth_state")?.value;
   if (!storedState || storedState !== state) {
-    return NextResponse.redirect(`${origin}/connect?error=${encodeURIComponent("State mismatch. Please try again.")}`);
+    return redirect(`/connect?error=${encodeURIComponent("State mismatch. Please try again.")}`);
   }
   cookieStore.delete("shopify_oauth_state");
 
   try {
-    // Exchange the authorisation code for a permanent offline access token
     const tokenRes = await fetch(`https://${shop}/admin/oauth/access_token`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -69,12 +67,11 @@ export async function GET(request: NextRequest) {
     if (!tokenRes.ok) {
       const err = await tokenRes.text();
       console.error("Token exchange failed:", err);
-      return NextResponse.redirect(`${origin}/connect?error=${encodeURIComponent("Token exchange failed.")}`);
+      return redirect(`/connect?error=${encodeURIComponent("Token exchange failed.")}`);
     }
 
     const { access_token, scope } = await tokenRes.json() as { access_token: string; scope: string };
 
-    // Persist as an offline session keyed by shop
     const sessionId = `offline_${shop}`;
     await db
       .insert(shopifySessions)
@@ -85,9 +82,9 @@ export async function GET(request: NextRequest) {
       });
 
     console.log(`✅ OAuth complete for shop: ${shop}`);
-    return NextResponse.redirect(`${origin}/`);
+    return redirect("/");
   } catch (error) {
     console.error("OAuth callback error:", error);
-    return NextResponse.redirect(`${origin}/connect?error=${encodeURIComponent("Authentication failed. Please try again.")}`);
+    return redirect(`/connect?error=${encodeURIComponent("Authentication failed. Please try again.")}`);
   }
 }
