@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    turbopackUseSystemTlsCerts: true,
+  },
   env: {
     SHOPIFY_API_KEY: "0371a3cc7fae2893d55741fe33e1989c",
     SHOPIFY_API_SECRET: "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",
