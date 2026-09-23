@@ -8,7 +8,7 @@ const SHOP = process.env.SHOPIFY_STORE_DOMAIN ?? "neonailuk.myshopify.com";
 
 const PRODUCTS_QUERY = `
   query GetProducts($cursor: String) {
-    products(first: 50, after: $cursor) {
+    products(first: 50, after: $cursor, query: "status:active") {
       pageInfo {
         hasNextPage
         endCursor
