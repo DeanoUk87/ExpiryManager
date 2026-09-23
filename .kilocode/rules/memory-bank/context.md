@@ -59,3 +59,4 @@ A Shopify product expiry tracking and reminder app. Users can add products (with
 |------|---------|
 | Initial | Template created with base setup |
 | 2026-03-18 | Full Shopify Expiry Manager app built from scratch |
+| 2026-09-23 | Fixed deployment build failures: lazy DB init via Proxy in `src/db/index.ts`, added `export const dynamic = "force-dynamic"` to all 15 API routes, added `turbopackUseSystemTlsCerts: true` to `next.config.ts` |
