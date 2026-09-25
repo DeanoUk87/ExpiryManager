@@ -11,6 +11,8 @@ const nextConfig: NextConfig = {
     SHOPIFY_APP_URL: "https://631bc6fe-a22a-4e72-a8b5-6b39e25987db.builder.kiloapps.io",
     SHOPIFY_STORE_DOMAIN: "neonailuk.myshopify.com",
     NEXTAUTH_SECRET: "axBctaj5qb3dMG+5ysgXROuwwXsISolm",
+    RESEND_API_KEY: process.env.RESEND_API_KEY ?? "",
+    CRON_SECRET: process.env.CRON_SECRET ?? "",
   },
 };
 
