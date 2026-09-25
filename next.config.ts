@@ -12,16 +12,6 @@ const nextConfig: NextConfig = {
     SHOPIFY_STORE_DOMAIN: "neonailuk.myshopify.com",
     NEXTAUTH_SECRET: "axBctaj5qb3dMG+5ysgXROuwwXsISolm",
   },
-  async headers() {
-    return [
-      {
-        source: "/(.*)",
-        headers: [
-          { key: "X-Forwarded-Proto", value: "https" },
-        ],
-      },
-    ];
-  },
 };
 
 export default nextConfig;
